@@ -1,90 +1,128 @@
-from vosk import Model, KaldiRecognizer  # оффлайн-распознавание от Vosk
-import speech_recognition  # распознавание пользовательской речи (Speech-To-Text)
-import wave  # создание и чтение аудиофайлов формата wav
-import json  # работа с json-файлами и json-строками
-import os  # работа с файловой системой
+import os
+import subprocess
+import pyttsx3
+import datetime
+import speech_recognition as sr
+import webbrowser
 
+class VoiceAssistant:
+    def __init__(self):
+        # Инициализация голосового движка
+        self.engine = pyttsx3.init(driverName='sapi5')
+        self.engine.setProperty('rate', 150)
+        self.engine.setProperty('volume', 0.9)
+        
+        # Настройки приложений
+        self.app_paths = {
+            'notepad': 'notepad.exe',
+            'calculator': 'calc.exe',
+            'browser': 'chrome.exe'
+        }
+        
+        # Веб-сайты
+        self.websites = {
+            'youtube': 'https://youtube.com',
+            'google': 'https://google.com',
+            'stack overflow': 'https://stackoverflow.com'
+        }
 
-def record_and_recognize_audio(*args: tuple):
-    """
-    Запись и распознавание аудио
-    """
-    with microphone:
-        recognized_data = ""
+    def speak(self, text):
+        """Синтез речи с использованием pyttsx3"""
+        self.engine.say(text)
+        self.engine.runAndWait()
 
-        # регулирование уровня окружающего шума
-        recognizer.adjust_for_ambient_noise(microphone, duration=2)
+    def greet(self):
+        """Приветствие в зависимости от времени суток"""
+        hour = datetime.datetime.now().hour
+        if 5 <= hour < 12:
+            greeting = "Good morning!"
+        elif 12 <= hour < 18:
+            greeting = "Good afternoon!"
+        else:
+            greeting = "Good evening!"
+        
+        self.speak(f"{greeting} How can I assist you today?")
+        print(f"System: {greeting} How can I assist you today?")
+
+    def get_time(self):
+        """Озвучивание текущего времени"""
+        current_time = datetime.datetime.now().strftime("%I:%M %p")
+        self.speak(f"The current time is {current_time}")
+        print(f"Current time: {current_time}")
+
+    def listen(self):
+        """Распознавание голосовых команд"""
+        recognizer = sr.Recognizer()
+        with sr.Microphone() as source:
+            print("Listening...")
+            recognizer.adjust_for_ambient_noise(source)
+            audio = recognizer.listen(source, timeout=5, phrase_time_limit=5)
 
         try:
-            print("Listening...")
-            audio = recognizer.listen(microphone, 5, 5)
+            print("Recognizing...")
+            command = recognizer.recognize_google(audio).lower()
+            print(f"User command: {command}")
+            return command
+        except sr.UnknownValueError:
+            self.speak("Could not understand audio, please try again")
+            return ""
+        except sr.RequestError:
+            self.speak("Speech service unavailable")
+            return ""
+        except Exception as e:
+            print(f"Error: {e}")
+            return ""
 
-            with open("microphone-results.wav", "wb") as file:
-                file.write(audio.get_wav_data())
+    def open_website(self, site):
+        """Открытие веб-сайтов"""
+        if site in self.websites:
+            wb.open_new_tab(self.websites[site])
+            self.speak(f"Opening {site}")
+        else:
+            self.speak("Website not configured")
 
-        except speech_recognition.WaitTimeoutError:
-            print("Can you check if your microphone is on, please?")
+    def launch_app(self, app_name):
+        """Запуск приложений"""
+        try:
+            if app_name in self.app_paths:
+                subprocess.Popen(self.app_paths[app_name])
+                self.speak(f"Starting {app_name}")
+            else:
+                self.speak("Application not found in my database")
+        except Exception as e:
+            print(f"Error launching app: {e}")
+            self.speak("Failed to launch application")
+
+    def process_command(self, command):
+        """Обработка команд"""
+        if not command:
             return
 
-        # использование online-распознавания через Google 
-        try:
-            print("Started recognition...")
-            recognized_data = recognizer.recognize_google(audio, language="ru").lower()
+        if 'time' in command:
+            self.get_time()
+            
+        elif 'open' in command:
+            if 'website' in command or 'browser' in command:
+                for site in self.websites:
+                    if site in command:
+                        self.open_website(site)
+                        return
+                self.speak("Which website should I open?")
+            else:
+                for app in self.app_paths:
+                    if app in command:
+                        self.launch_app(app)
+                        return
+                self.speak("Which application should I open?")
 
-        except speech_recognition.UnknownValueError:
-            pass
-
-        # в случае проблем с доступом в Интернет происходит попытка 
-        # использовать offline-распознавание через Vosk
-        except speech_recognition.RequestError:
-            print("Trying to use offline recognition...")
-            recognized_data = use_offline_recognition()
-
-        return recognized_data
-
-
-def use_offline_recognition():
-    """
-    Переключение на оффлайн-распознавание речи
-    :return: распознанная фраза
-    """
-    recognized_data = ""
-    try:
-        # проверка наличия модели на нужном языке в каталоге приложения
-        if not os.path.exists("models/vosk-model-small-ru-0.4"):
-            print("Please download the model from:\n"
-                  "https://alphacephei.com/vosk/models and unpack as 'model' in the current folder.")
-            exit(1)
-
-        # анализ записанного в микрофон аудио (чтобы избежать повторов фразы)
-        wave_audio_file = wave.open("microphone-results.wav", "rb")
-        model = Model("models/vosk-model-small-ru-0.4")
-        offline_recognizer = KaldiRecognizer(model, wave_audio_file.getframerate())
-
-        data = wave_audio_file.readframes(wave_audio_file.getnframes())
-        if len(data) > 0:
-            if offline_recognizer.AcceptWaveform(data):
-                recognized_data = offline_recognizer.Result()
-
-                # получение данных распознанного текста из JSON-строки
-                # (чтобы можно было выдать по ней ответ)
-                recognized_data = json.loads(recognized_data)
-                recognized_data = recognized_data["text"]
-    except:
-        print("Sorry, speech service is unavailable. Try again later")
-
-    return recognized_data
-
+        elif 'exit' in command or 'quit' in command:
+            self.speak("Goodbye!")
+            exit()
 
 if __name__ == "__main__":
-
-    # инициализация инструментов распознавания и ввода речи
-    recognizer = speech_recognition.Recognizer()
-    microphone = speech_recognition.Microphone()
-
+    assistant = VoiceAssistant()
+    assistant.greet()
+    
     while True:
-        # старт записи речи с последующим выводом распознанной речи
-        # и удалением записанного в микрофон аудио
-        voice_input = record_and_recognize_audio()
-        os.remove("microphone-results.wav")
-        print(voice_input)
+        command = assistant.listen()
+        assistant.process_command(command)
