@@ -52,7 +52,7 @@ def checktime(tt):
 
 
 def wishme():
-    speak("Добро пожаловать обратно!")
+    speak("Добро пожаловать!")
     hour = datetime.datetime.now().hour
     if (6 <= hour < 12):
         speak("Доброе утро!")
@@ -163,6 +163,16 @@ if __name__ == "__main__":
         elif 'скриншот' in query:
             screenshot()
             speak("Скриншот сохранён")
+        elif 'запомни' in query:
+            speak("Что я должен запомнить")
+            data = takeCommand()
+            speak("вы мне сказали запомнить вот это" + data)
+            remember = open('data.txt', 'w')
+            remember.write(data)
+            remember.close()
+        elif 'покажи мне что ты запомнил' in query:
+            remember = open('data.txt', 'r')
+            speak("вы мне сказали запомнить вот это" + remember.read())
         elif 'заряд' in query or 'батарея' in query or 'процессор' in query:
             cpu()
         elif 'погода' in query or 'температура' in query:
